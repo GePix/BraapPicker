@@ -1,13 +1,23 @@
+import sys
+import os
+from PyQt6.QtWidgets import QApplication, QWidget, QLineEdit, QPushButton, QTextEdit, QVBoxLayout, QLabel, QCheckBox
+from PyQt6.QtGui import QIcon, QKeyEvent
+
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-import tkinter as tk
-from tkinter import Label, Entry, BooleanVar, Checkbutton, Button
 import random
 
 
 # enter API Key for Youtube Data V3
-API_KEY = "ADD API KEY HERE"
+API_KEY = "ENTER YOUR API KEY HERE"
 
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 def get_video_id(url):
     if "youtube.com/watch" in url:
@@ -15,7 +25,7 @@ def get_video_id(url):
     elif "youtu.be" in url:
         return url.split("/")[-1]
     else:
-        raise ValueError("Invalid YouTube URL")
+        raise KeyError("Youtube URL nicht zulässig")
 
 
 
@@ -89,74 +99,83 @@ def select_random_comment(comments):
             random_comment = random_comment_author_pair[0]
     return random_comment, random_author
 
+# Initialze the PyQt Window
+class Picker(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("BraapPicker")
+        self.resize(800,600)
+        self.setStyleSheet("background-color: red")
 
-def main():
-    # create the GUI window
-    window = tk.Tk()
-    window.title("BraapPicker")
-    window.geometry("800x600")
-    window.configure(background="red4")
+        layout = QVBoxLayout()
+        self.setLayout(layout)
 
-    url_label = tk.Label(window, text="Youtube URL eingeben:")
-    url_label.configure(background="red4", foreground="white")
-    url_label.pack(padx=10, pady=10, anchor="w")
-    url_entry = tk.Entry(window, width=100)
-    url_entry.configure(background="grey80")
-    url_entry.bind("<Return>", lambda event: get_random_comment())
-    url_entry.pack(padx=10, pady=10, anchor="w")
+        self.inputFieldUrl = QLineEdit()
+        self.inputFieldUrl.setStyleSheet("background-color: white")
+        self.inputFieldKeyword = QLineEdit()
+        self.inputFieldKeyword.setStyleSheet("background-color: white")
+        button = QPushButton("Zufälligen Kommentar auswählen", clicked=self.get_random_comment)
+        button.setStyleSheet("background-color: gray")
+        button.setDefault(True)
+        self.output = QTextEdit()
+        self.output.setStyleSheet("color: white")
+        self.UrlLabel = QLabel("Youtube URL eingeben:")
+        self.UrlLabel.setStyleSheet("color: white")
+        self.KeywordLabel = QLabel("Nach Keyword filter, oder leer lassen: ")
+        self.KeywordLabel.setStyleSheet("color: white")
+        self.AuthorCheckbox = QCheckBox("Mehrere Kommentare des selben Nutzers erlauben?")
+        self.AuthorCheckbox.setStyleSheet("color: white")
 
-    keyword_label = tk.Label(window, text="Nach spezifischem Keyword suchen (oder leer lassen):")
-    keyword_label.configure(background="red4", foreground="white")
-    keyword_label.pack(padx=10, pady=10, anchor="w")
-    keyword_entry = tk.Entry(window, width=50)
-    keyword_entry.configure(background="grey80")
-    keyword_entry.bind("<Return>", lambda event: get_random_comment())
-    keyword_entry.pack(padx=10, pady=10, anchor="w")
+        layout.addWidget(self.UrlLabel)
+        layout.addWidget(self.inputFieldUrl)
+        layout.addWidget(self.KeywordLabel)
+        layout.addWidget(self.inputFieldKeyword)
+        layout.addWidget(self.AuthorCheckbox)
+        layout.addWidget(self.output)
+        layout.addWidget(button)
 
-    allow_same_author = tk.BooleanVar()
-    allow_same_author_checkbox = tk.Checkbutton(window, text="Mehrere Kommentare des selben Nutzers erlauben?", variable=allow_same_author)
-    allow_same_author_checkbox.configure(background="red4", foreground="white")
-    allow_same_author_checkbox.pack(padx=10, pady=10, anchor="w")
 
-    count_label = tk.Label(window, text="")
-    count_label.configure(background="red4", foreground="white")
-    count_label.pack(padx=10, anchor="w")
 
-    comment_label = tk.Label(window, width=100,  text="")
-    comment_label.configure(background="red4", foreground="white")
-    comment_label.pack(padx=10, pady=20, anchor="w")
+    def get_random_comment(self):
+        
+        video_id = get_video_id(self.inputFieldUrl.text())
 
-    author_label = tk.Label(window, text="")
-    author_label.configure(background="red4", foreground="white")
-    author_label.pack(padx=10, anchor="w")
+        keyword = self.inputFieldKeyword.text()
 
-    # create a button to select a random comment
-    def get_random_comment():
-        video_id = get_video_id(url_entry.get())
-
-        keyword = keyword_entry.get()
         if not keyword:
             comments = get_comments(video_id, keyword=None)
         comments = get_comments(video_id, keyword=keyword)
 
-        # filter out comments from the same author if necessary
-        if not allow_same_author.get():
-            comments = remove_same_author_comments(comments)
+        if not self.AuthorCheckbox.isChecked():
+            comments= remove_same_author_comments(comments)
 
-        count_label.config(text=f"Kommentare analysiert gesamt: {len(comments)}")
+        selected_comment, selected_author = "", ""
+        comments_analyzed = "Keine Kommentare gefunden"
 
-        # select a random comment from the remaining comments
-        selected_comment, selected_author = select_random_comment(comments)
+        if len(comments) > 0:
+            selected_comment, selected_author = select_random_comment(comments)
+            comments_analyzed = str(len(comments))
+            
+        self.output.setText(selected_comment + "\n\nvon: " + selected_author + "\n\nKommentare analysiert gesamt: " + comments_analyzed)
+        
 
-        comment_label.config(text=f"{selected_comment} \n")
-        author_label.config(text=f"Von: {selected_author}")
+    def keyPressEvent(self, event):
+        if event.key() == 16777220:
+            self.get_random_comment()
 
-    select_button = tk.Button(window, text="Zufälligen Kommentar auswählen", command=get_random_comment)
-    select_button.configure(background="white")
-    select_button.pack(side=tk.BOTTOM,anchor="se" ,pady=10, padx=10)
+app = QApplication(sys.argv)
+app.setStyleSheet("""
+    QWidget {
+        font-size: 25px;
+    }
 
-    # GUI main loop
-    window.mainloop()
+    QPushButton {
+        font-size 20px;
+    }
 
-if __name__ == "__main__":
-    main()
+""")
+
+window = Picker()
+window.show()
+
+app.exec()
